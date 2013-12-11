@@ -45,19 +45,18 @@ class Aschroder_SMTPPro_Model_Email_Template extends Mage_Core_Model_Email_Templ
         $variables['name'] = reset($names);
 
         $mail = $this->getMail();
-
-       	$dev = Mage::helper('smtppro')->getDevelopmentMode();
+        $dev = Mage::helper('smtppro')->getDevelopmentMode();
 
         if ($dev == "contact") {
 
-			$email = Mage::getStoreConfig('contacts/email/recipient_email', $this->getDesignConfig()->getStore());
-			Mage::log("Development mode set to send all emails to contact form recipient: " . $email);
+            $email = Mage::getStoreConfig('contacts/email/recipient_email', $this->getDesignConfig()->getStore());
+            Mage::log("Development mode set to send all emails to contact form recipient: " . $email);
 
         } elseif ($dev == "supress") {
 
-			Mage::log("Development mode set to supress all emails.");
-			# we bail out, but report success
-        	return true;
+            Mage::log("Development mode set to supress all emails.");
+            # we bail out, but report success
+            return true;
         }
 
         // In Magento core they set the Return-Path here, for the sendmail command.
@@ -78,50 +77,58 @@ class Aschroder_SMTPPro_Model_Email_Template extends Mage_Core_Model_Email_Templ
         }
 
         $mail->setSubject('=?utf-8?B?'.base64_encode($this->getProcessedTemplateSubject($variables)).'?=');
-        $mail->setFrom($this->getTemplateSenderEmail(), $this->getTemplateSenderName());
 
-		// If we are using store emails as reply-to's set the header
-		// Check the header is not already set by the application.
-		// The contact form, for example, set's it to the sender of
-		// the contact. Thanks i960 for pointing this out.
+        if(!$senderEmail = $this->getSenderEmail()){
+            $senderEmail = $this->getTemplateSenderEmail();
+        }
+        if(!$senderName = $this->getSenderName()){
+            $senderName = $this->getTemplateSenderName();
+        }
+
+        $mail->setFrom($senderEmail, $senderName);
+
+        // If we are using store emails as reply-to's set the header
+        // Check the header is not already set by the application.
+        // The contact form, for example, set's it to the sender of
+        // the contact. Thanks i960 for pointing this out.
 
         if (Mage::helper('smtppro')->isReplyToStoreEmail()
-			&& !array_key_exists('Reply-To', $mail->getHeaders())) {
+            && !array_key_exists('Reply-To', $mail->getHeaders())) {
 
-			// Patch for Zend upgrade
-			// Later versions of Zend have a method for this, and disallow direct header setting...
-			if (method_exists($mail, "setReplyTo")) {
-				$mail->setReplyTo($this->getSenderEmail(), $this->getSenderName());
-			} else {
-	        	$mail->addHeader('Reply-To', $this->getSenderEmail());
-			}
-			Mage::log('ReplyToStoreEmail is enabled, just set Reply-To header: ' . $this->getSenderEmail());
+            // Patch for Zend upgrade
+            // Later versions of Zend have a method for this, and disallow direct header setting...
+            if (method_exists($mail, "setReplyTo")) {
+                $mail->setReplyTo($this->getSenderEmail(), $this->getSenderName());
+            } else {
+                $mail->addHeader('Reply-To', $this->getSenderEmail());
+            }
+            Mage::log('ReplyToStoreEmail is enabled, just set Reply-To header: ' . $this->getSenderEmail());
 
         }
 
-		$transport = Mage::helper('smtppro')->getTransport($this->getDesignConfig()->getStore());
+        $transport = Mage::helper('smtppro')->getTransport($this->getDesignConfig()->getStore());
 
         try {
 
-        	Mage::log('About to send email');
-	        $mail->send($transport); // Zend_Mail warning..
-		    Mage::log('Finished sending email');
+            Mage::log('About to send email');
+            $mail->send($transport); // Zend_Mail warning..
+            Mage::log('Finished sending email');
 
-		    // Record one email for each receipient
-         	foreach ($emails as $key => $email) {
-				Mage::dispatchEvent('smtppro_email_after_send',
-					 array('to' => $email,
-						 'template' => $this->getTemplateId(),
-						 'subject' => $this->getProcessedTemplateSubject($variables),
-						 'html' => !$this->isPlain(),
-						 'email_body' => $text));
+            // Record one email for each receipient
+            foreach ($emails as $key => $email) {
+                Mage::dispatchEvent('smtppro_email_after_send',
+                     array('to' => $email,
+                         'template' => $this->getTemplateId(),
+                         'subject' => $this->getProcessedTemplateSubject($variables),
+                         'html' => !$this->isPlain(),
+                         'email_body' => $text));
 
-        	}
+            }
 
-	        $this->_mail = null;
+            $this->_mail = null;
         }
         catch (Exception $e) {
-        	Mage::logException($e);
+            Mage::logException($e);
             return false;
         }
 
